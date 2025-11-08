@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Eureka Optimization Engine</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</head>
+<body class="bg-gray-900 text-white p-8">
+    <div class="max-w-7xl mx-auto">
+        <h1 class="text-4xl font-bold text-cyan-400 text-center">Eureka Optimization Engine</h1>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 my-8">
+            <div class="bg-gray-800 p-6 rounded-lg text-center">
+                <h2 class="text-gray-400 text-lg">Optimal Result (Max Range)</h2>
+                <p id="best-range" class="text-3xl font-bold text-green-400 mt-2">-</p>
+                <p id="best-params" class="text-gray-300 mt-1">-</p>
+            </div>
+            <div class="bg-gray-800 p-6 rounded-lg text-center">
+                <h2 class="text-gray-400 text-lg">Live Stats</h2>
+                <p class="text-3xl font-bold text-cyan-400 mt-2"><span id="total-runs">0</span> Runs</p>
+                <p class="text-gray-300 mt-1">Avg. Range: <span id="avg-range">0</span></p>
+            </div>
+             <div class="bg-gray-800 p-6 rounded-lg text-center flex flex-col justify-center">
+                <button id="start-btn" class="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-8 rounded-lg transition-all">Start Analysis</button>
+            </div>
+        </div>
+        <div class="bg-gray-800 p-6 rounded-lg">
+            <div id="plot-div" style="width: 100%; height: 600px;"></div>
+        </div>
+    </div>
+    <script>
+        const socket = io('http://localhost:5000');
+        const plotData = [{ x: [], y: [], z: [], mode: 'markers', type: 'scatter3d', marker: { color: [], colorscale: 'Viridis', size: 8, showscale: true }}];
+        const layout = { title: 'Range vs. Angle and Velocity', scene: { xaxis: { title: 'Angle' }, yaxis: { title: 'Velocity' }, zaxis: { title: 'Range' }}, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', font: { color: 'white' }};
+        Plotly.newPlot('plot-div', plotData, layout);
+
+        socket.on('update_plot', (data) => { Plotly.extendTraces('plot-div', { x: [[data.angle]], y: [[data.velocity]], z: [[data.range]], 'marker.color': [[data.range]]}, [0]); });
+        socket.on('update_stats', (data) => {
+            document.getElementById('total-runs').textContent = data.count;
+            document.getElementById('avg-range').textContent = data.avg_range ? data.avg_range.toFixed(2) : '0';
+        });
+        socket.on('update_best', (data) => {
+            document.getElementById('best-range').textContent = data.range.toFixed(2) + ' m';
+            document.getElementById('best-params').textContent = `Angle: ${data.angle}°, Vel: ${data.velocity} m/s`;
+        });
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            const config = {
+                "prompt": "A cannon firing a ball at {angle} degrees with {velocity} m/s.",
+                "parameters": { "angle": {"min": 10, "max": 80, "step": 5}, "velocity": {"min": 20, "max": 100, "step": 10} }
+            };
+            fetch('http://localhost:5000/start-analysis', {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(config)
+            });
+            alert('Analysis started! The dashboard will update live.');
+        });
+    </script>
+</body>
+</html>
